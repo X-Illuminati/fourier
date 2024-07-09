@@ -1,20 +1,31 @@
 CC=gcc
 CFLAGS=-Wall
+OUTDIR=out
+PROG=$(OUTDIR)/dft
+DIFF=diff
 
 .PHONY: all
-all: out/dft
+all: $(PROG)
 
 .PHONY: clean
 clean:
-	rm -f out/*
-	rmdir out
+	rm -f $(OUTDIR)/*
+	rmdir $(OUTDIR)
+
+$(OUTDIR):
+	mkdir $(OUTDIR)
+
+$(OUTDIR)/dft: dft.c | $(OUTDIR)
+	$(CC) $(CFLAGS) $< -o $@
 
 .PHONY: test
-test:
+testcases:=$(wildcard test/*.tc)
+test: $(testcases:test/%.tc=$(OUTDIR)/%.tc.out)
 
-out:
-	mkdir out
+$(OUTDIR)/%.numpy.out: test/%.tc test/test.py
+	test/test.py -i $< -o $@
 
-out/dft: dft.c | out
-	$(CC) $(CFLAGS) $< -o $@
+$(OUTDIR)/%.tc.out: test/%.tc $(PROG) $(OUTDIR)/%.numpy.out
+	$(PROG) -i $< -o $@
+	$(DIFF) $@ $(@:%.tc.out=%.numpy.out)
 

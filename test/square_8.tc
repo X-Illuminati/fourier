@@ -1,0 +1,11 @@
+# 8-sample test case with a square wave centered on 0 (no DC offset)
+8
+1
+1
+1
+1
+-1
+-1
+-1
+-1
+
