@@ -1,7 +1,10 @@
+#include <complex.h>
 #include <getopt.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 
 /*** #define values ***/
 #define MAX_SAMPLES ((size_t)4096U)
@@ -31,8 +34,9 @@ char* ril_lineptr = NULL;
     } while(0)
 
 /*** functions definitions ***/
-/* print basic usage information for the program */
-void print_help(void)
+/* print basic usage information for the program
+   note: calls exit(exit_code) at end and does not return */
+noreturn void print_help(int exit_code)
 {
     fprintf(stderr, "\
 usage dft [-v] [-h] [-i INPUT] [-o OUTPUT]\n\
@@ -46,6 +50,8 @@ options:\n\
   -i INPUT, --input INPUT     specify an input file\n\
   -o OUPTUT, --output OUTPUT  specify an output file\n\
 ");
+
+    exit(exit_code);
 }
 
 /* parse command line input options and return status */
@@ -78,7 +84,7 @@ int parse_args(int argc, char* const argv[])
 
             case 'h':
 /*BREAK*/       c=-1;
-                print_help();
+/*NORETURN*/    print_help(0);
                 break;
 
             case 'i':
@@ -94,7 +100,7 @@ int parse_args(int argc, char* const argv[])
             default:
                 retval=1;
 /*BREAK*/       c=-1;
-                print_help();
+/*NORETURN*/    print_help(1);
                 break;
         }
     }
@@ -223,6 +229,57 @@ long parse_input(float** input_buf)
     return retval;
 }
 
+/* DFT calculation
+ * Compute a basis of num_samples equally spaced phasors.
+ * Use these to compute the inner product with input_buf and store the
+ * results in transform_buf.
+ * Note: transform_buf must already be allocated and can not be NULL
+ */
+void dft(long num_samples, const float* const input_buf,
+    double complex* const transform_buf)
+{
+    //basis vectors (phasors) are e^(-itk2π/n)
+    //here we will compute them incrementally as ((e^(-i2π/n))^k)^t
+    //by repeated multiplication basis_k = basis_k * basis
+    //and basis_t = basis_t * basis_k
+    double complex basis = cexp(-I*2*M_PI/num_samples);
+    double complex basis_k = 1;
+    size_t k, t;
+
+    verbose("Basis: %.12lf%+.12lfj\n", creal(basis), cimag(basis));
+
+    for (k=0; k<num_samples; k++) {
+        double complex x = 0; //accumulate the calculations for our inner product
+        double complex basis_t = 1;
+        verbose("Basis k(%zd): %.12lf%+.12lfj\n", k, creal(basis_k), cimag(basis_k));
+        for (t=0; t<num_samples; t++) {
+            double complex xt = 0; //temporary inner product calc
+            xt = input_buf[t] * basis_t;
+            verbose("x(%zd,%zd) = %+.12lf*(%+.12lf%+.12lfj) = %+.12lf%+.12lfj\n", k,t, input_buf[t], creal(basis_t), cimag(basis_t), creal(xt), cimag(xt));
+            basis_t = basis_t * basis_k;
+            x += xt;
+        }
+        verbose("total x                                                    = %+.12lf%+.12lfj\n", creal(x), cimag(x));
+        transform_buf[k] = x;
+        basis_k = basis_k * basis;
+    }
+}
+
+/* print out the result in the test case output format */
+void print_result(long num_bins, const double complex* const bins)
+{
+    size_t i;
+    printf("# %ld Frequency Bins\n", num_bins);
+    for (i=0; i< num_bins; i++)
+        printf("%.12lf%+.12lfj\n", creal(bins[i]), cimag(bins[i]));
+
+    if ((NULL != option_output_file) && (option_verbose)) {
+        verbose("# %ld Frequency Bins\n", num_bins);
+        for (i=0; i< num_bins; i++)
+            verbose("%.12lf%+.12lfj\n", creal(bins[i]), cimag(bins[i]));
+    }
+}
+
 /* main logic */
 int main(int argc, char* const argv[])
 {
@@ -234,7 +291,7 @@ int main(int argc, char* const argv[])
     if (0 == retval) {
         long num_samples = 0;
         float* input_buf = NULL; //note: free when going out of scope
-        float* transform_buf = NULL; //TODO Complex type
+        double complex* transform_buf = NULL; //note: malloc in this function
 
         // redirect input and output
         if (NULL != option_input_file)
@@ -245,19 +302,17 @@ int main(int argc, char* const argv[])
 
         // read samples from input
         num_samples = parse_input(&input_buf);
-        if (num_samples <= 0) {
+        if ((num_samples <= 0) || (num_samples > 40960)) {
             retval = 2;
         } else {
             // perform DFT processing
-            // placeholder
-            transform_buf = input_buf;
+            transform_buf = malloc(num_samples * sizeof(double complex));
+            dft(num_samples, input_buf, transform_buf);
 
             if (NULL != transform_buf) {
-                size_t i;
                 // write output
-                printf("# %ld Frequency Bins\n", num_samples);
-                for (i=0; i< num_samples; i++)
-                    printf("%.14g\n", transform_buf[i]);
+                print_result(num_samples, transform_buf);
+                free(transform_buf);
             } else {
                 retval = 3;
             }

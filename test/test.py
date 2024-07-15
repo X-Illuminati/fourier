@@ -62,9 +62,11 @@ def main(inargs) -> int:
     sp = np.fft.fft(samples)
     print("# {} Frequency Bins".format(len(sp)), file=args.output)
     for v in sp:
-        # we'll try 14 significant digits for now and see whether it causes
+        # we'll try 12 decimal places for now and see whether it causes
         # numerical errors that impact our comparison
-        print("{:.14g}".format(v), file=args.output)
+        # already with a small test case, 14 decimal places begins to show
+        # differences between c's complex doubles and python's complex numbers
+        print("{:.12f}".format(v), file=args.output)
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
