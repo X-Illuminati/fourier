@@ -23,6 +23,7 @@ $(OUTDIR)/dft: dft.c | $(OUTDIR)
 testcases:=$(wildcard test/*.tc)
 test: $(testcases:test/%.tc=$(OUTDIR)/%.tc.out)
 
+.SECONDARY: $(testcases:test/%.tc=$(OUTDIR)/%.numpy.out)
 $(OUTDIR)/%.numpy.out: test/%.tc test/test.py
 	test/test.py -i $< -o $@
 

@@ -242,24 +242,24 @@ void dft(long num_samples, const float* const input_buf,
     //here we will compute them incrementally as ((e^(-i2π/n))^k)^t
     //by repeated multiplication basis_k = basis_k * basis
     //and basis_t = basis_t * basis_k
-    double complex basis = cexp(-I*2*M_PI/num_samples);
-    double complex basis_k = 1;
+    long double complex basis = cexpl(-I*2*M_PI/num_samples);
+    long double complex basis_k = 1;
     size_t k, t;
 
-    verbose("Basis: %.12lf%+.12lfj\n", creal(basis), cimag(basis));
+    verbose("Basis: %.16Lf%+.16Lfj\n", creall(basis), cimagl(basis));
 
     for (k=0; k<num_samples; k++) {
-        double complex x = 0; //accumulate the calculations for our inner product
-        double complex basis_t = 1;
-        verbose("Basis k(%zd): %.12lf%+.12lfj\n", k, creal(basis_k), cimag(basis_k));
+        long double complex x = 0; //accumulate the calculations for our inner product
+        long double complex basis_t = 1;
+        verbose("Basis k(%zd): %.16Lf%+.16Lfj\n", k, creall(basis_k), cimagl(basis_k));
         for (t=0; t<num_samples; t++) {
-            double complex xt = 0; //temporary inner product calc
+            long double complex xt = 0; //temporary inner product calc
             xt = input_buf[t] * basis_t;
-            verbose("x(%zd,%zd) = %+.12lf*(%+.12lf%+.12lfj) = %+.12lf%+.12lfj\n", k,t, input_buf[t], creal(basis_t), cimag(basis_t), creal(xt), cimag(xt));
+            verbose("x(%zd,%zd) = %+.16lf*(%+.16Lf%+.16Lfj) = %+.16Lf%+.16Lfj\n", k,t, input_buf[t], creall(basis_t), cimagl(basis_t), creall(xt), cimagl(xt));
             basis_t = basis_t * basis_k;
             x += xt;
         }
-        verbose("total x                                                    = %+.12lf%+.12lfj\n", creal(x), cimag(x));
+        verbose("total x                                                    = %+.16Lf%+.16Lfj\n", creall(x), cimagl(x));
         transform_buf[k] = x;
         basis_k = basis_k * basis;
     }
@@ -271,12 +271,12 @@ void print_result(long num_bins, const double complex* const bins)
     size_t i;
     printf("# %ld Frequency Bins\n", num_bins);
     for (i=0; i< num_bins; i++)
-        printf("%.12lf%+.12lfj\n", creal(bins[i]), cimag(bins[i]));
+        printf("%.16lf%+.16lfj\n", creal(bins[i]), cimag(bins[i]));
 
     if ((NULL != option_output_file) && (option_verbose)) {
         verbose("# %ld Frequency Bins\n", num_bins);
         for (i=0; i< num_bins; i++)
-            verbose("%.12lf%+.12lfj\n", creal(bins[i]), cimag(bins[i]));
+            verbose("%.16lf%+.16lfj\n", creal(bins[i]), cimag(bins[i]));
     }
 }
 
