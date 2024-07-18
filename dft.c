@@ -160,14 +160,14 @@ bool read_one_long(long* out)
     return retval;
 }
 
-/* read a single float from stdin into "out", return false on error */
-bool read_one_float(float* out)
+/* read a single double from stdin into "out", return false on error */
+bool read_one_double(double* out)
 {
     bool retval = false;
     char* lineptr = NULL;
 
     while(true) {
-        float res;
+        double res;
         char* endptr;
 
         lineptr = read_input_line();
@@ -176,7 +176,7 @@ bool read_one_float(float* out)
 /*BREAK*/   break;
 
         endptr = lineptr;
-        res = strtof(lineptr, &endptr);
+        res = strtod(lineptr, &endptr);
         if (lineptr != endptr) {
             /* success - this is relatively forgiving pass criteria */
             *out = res;
@@ -190,7 +190,7 @@ bool read_one_float(float* out)
 
 /* parse testcase data from stdin into input_buf (caller must free)
    and return the number of samples or -1 on error */
-long parse_input(float** input_buf)
+long parse_input(double** input_buf)
 {
     long retval = -1;
     long num_samples = 0;
@@ -199,7 +199,7 @@ long parse_input(float** input_buf)
     if (read_one_long(&num_samples)) {
         verbose("num_samples = %ld\n", num_samples);
         if ((num_samples > 0) && (num_samples < MAX_SAMPLES)) {
-            *input_buf = malloc(num_samples * sizeof(float));
+            *input_buf = malloc(num_samples * sizeof(**input_buf));
             if (NULL == *input_buf) {
                 error("Error allocating %zd bytes for input\n", (num_samples * sizeof(float)));
             } else {
@@ -214,8 +214,8 @@ long parse_input(float** input_buf)
 
     if (retval > 0) {
         for (i=0; i<num_samples; i++) {
-            if (read_one_float(&((*input_buf)[i]))) {
-                verbose("%ld: %.14g\n", i, (*input_buf)[i]);
+            if (read_one_double(&((*input_buf)[i]))) {
+                verbose("%ld: %.16lf\n", i, (*input_buf)[i]);
             } else {
                 error("Error parsing testcase sample %ld\n", i);
                 retval = -1;
@@ -235,7 +235,7 @@ long parse_input(float** input_buf)
  * results in transform_buf.
  * Note: transform_buf must already be allocated and can not be NULL
  */
-void dft(long num_samples, const float* const input_buf,
+void dft(long num_samples, const double* const input_buf,
     double complex* const transform_buf)
 {
     //basis vectors (phasors) are e^(-itk2π/n)
@@ -270,7 +270,7 @@ void print_result(long num_bins, const double complex* const bins)
 {
     size_t i;
     printf("# %ld Frequency Bins\n", num_bins);
-    for (i=0; i< num_bins; i++)
+    for (i=0; i<num_bins; i++)
         printf("%.16lf%+.16lfj\n", creal(bins[i]), cimag(bins[i]));
 
     if ((NULL != option_output_file) && (option_verbose)) {
@@ -290,7 +290,7 @@ int main(int argc, char* const argv[])
 
     if (0 == retval) {
         long num_samples = 0;
-        float* input_buf = NULL; //note: free when going out of scope
+        double* input_buf = NULL; //note: free when going out of scope
         double complex* transform_buf = NULL; //note: malloc in this function
 
         // redirect input and output
@@ -306,7 +306,7 @@ int main(int argc, char* const argv[])
             retval = 2;
         } else {
             // perform DFT processing
-            transform_buf = malloc(num_samples * sizeof(double complex));
+            transform_buf = malloc(num_samples * sizeof(*transform_buf));
             dft(num_samples, input_buf, transform_buf);
 
             if (NULL != transform_buf) {
