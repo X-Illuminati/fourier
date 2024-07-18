@@ -2,14 +2,15 @@ CC=gcc
 CFLAGS=-Wall
 OUTDIR=out
 PROG=$(OUTDIR)/dft
-DIFF=diff
+DIFF=test/diff.py
 TESTFLAGS=
+DIFFFLAGS=
 
 .PHONY: all
 all: $(PROG)
 
 .PHONY: clean
-clean:
+clean: | $(OUTDIR)
 	rm -f $(OUTDIR)/*
 	rmdir $(OUTDIR)
 
@@ -21,13 +22,16 @@ $(OUTDIR)/dft: dft.c | $(OUTDIR)
 
 .PHONY: test
 testcases:=$(wildcard test/*.tc)
-test: $(testcases:test/%.tc=$(OUTDIR)/%.tc.out)
+test: $(testcases:test/%.tc=$(OUTDIR)/%.tc.diff)
 
 .SECONDARY: $(testcases:test/%.tc=$(OUTDIR)/%.numpy.out)
 $(OUTDIR)/%.numpy.out: test/%.tc test/test.py
-	test/test.py -i $< -o $@
+	test/test.py -i $< -o $@ $(TESTFLAGS)
 
-$(OUTDIR)/%.tc.out: test/%.tc $(PROG) $(OUTDIR)/%.numpy.out
+.SECONDARY: $(testcases:test/%.tc=$(OUTDIR)/%.tc.out)
+$(OUTDIR)/%.tc.out: test/%.tc $(PROG)
 	$(PROG) -i $< -o $@ $(TESTFLAGS)
-	$(DIFF) $@ $(@:%.tc.out=%.numpy.out)
+
+$(OUTDIR)/%.tc.diff: $(OUTDIR)/%.tc.out $(OUTDIR)/%.numpy.out
+	$(DIFF) $(@:%.tc.diff=%.tc.out) $(@:%.tc.diff=%.numpy.out) $(DIFFFLAGS)
 
