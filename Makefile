@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-Wall
 OUTDIR=out
-PROG=$(OUTDIR)/dft
+PROG=$(OUTDIR)/fft
 DIFF=test/diff.py
 TESTFLAGS=
 DIFFFLAGS=
@@ -18,6 +18,9 @@ $(OUTDIR):
 	mkdir $(OUTDIR)
 
 $(OUTDIR)/dft: dft.c | $(OUTDIR)
+	$(CC) $(CFLAGS) $< -lm -o $@
+
+$(OUTDIR)/fft: fft.c | $(OUTDIR)
 	$(CC) $(CFLAGS) $< -lm -o $@
 
 .PHONY: test
