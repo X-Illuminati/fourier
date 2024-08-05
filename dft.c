@@ -198,7 +198,7 @@ long parse_input(double** input_buf)
 
     if (read_one_long(&num_samples)) {
         verbose("num_samples = %ld\n", num_samples);
-        if ((num_samples > 0) && (num_samples < MAX_SAMPLES)) {
+        if ((num_samples > 0) && (num_samples <= MAX_SAMPLES)) {
             *input_buf = malloc(num_samples * sizeof(**input_buf));
             if (NULL == *input_buf) {
                 error("Error allocating %zd bytes for input\n", (num_samples * sizeof(float)));

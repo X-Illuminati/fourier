@@ -63,7 +63,7 @@ def main(inargs) -> int:
     if ((0==retval) or args.all):
         for i in range(min(len(samples1), len(samples2))):
             if (not cmath.isclose(samples1[i], samples2[i],
-                abs_tol=args.tolerance)):
+                abs_tol=args.tolerance, rel_tol=0.0)):
                 retval+=1
                 print("Mismatch in sample {}: input1={}, input2={}".format(i, samples1[i], samples2[i]), file=sys.stderr)
                 if (not args.all):
