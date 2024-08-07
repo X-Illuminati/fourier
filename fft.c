@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <complex.h>
 #include <getopt.h>
 #include <math.h>
@@ -5,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
+#include <string.h>
 
 /*** #define values ***/
 #define MAX_SAMPLES ((size_t)4096U)
@@ -21,6 +23,8 @@ char* ril_lineptr = NULL;
 /*** function prototypes ***/
 
 /*** function like macros ***/
+#define ispowerof2(unsigned_val) (0 == (unsigned_val & (unsigned_val - 1)))
+
 /* verbose logging */
 #define verbose(...) \
     do { \
@@ -39,10 +43,11 @@ char* ril_lineptr = NULL;
 noreturn void print_help(int exit_code)
 {
     fprintf(stderr, "\
-usage dft [-v] [-h] [-i INPUT] [-o OUTPUT]\n\
+usage fft [-v] [-h] [-i INPUT] [-o OUTPUT]\n\
 \n\
 This program will read a test case .tc file from stdin and compute\n\
-the Discrete Fourier Transform for it and print the result to stdout.\n\
+the Fast Fourier Transform for it and print the result to stdout.\n\
+The number of samples in the test case must be a power of 2.\n\
 \n\
 options:\n\
   -v, --verbose               extra output for debug\n\
@@ -229,53 +234,104 @@ long parse_input(double** input_buf)
     return retval;
 }
 
-/* DFT calculation
- * Compute a basis of num_samples equally spaced phasors.
- * Use these to compute the inner product with input_buf and store the
- * results in transform_buf.
+/* FFT calculation
+ * 1. Split the sample into two halves (even/odd fields)
+ * 2. Recursively compute the FFT on each half
+ * 3. Merge the results
  * Note: transform_buf must already be allocated and can not be NULL
+ * Note: modifies input_buf
  */
-void dft(long num_samples, const double* const input_buf,
+void fft(long num_samples, double* const input_buf,
     double complex* const transform_buf)
 {
-    //basis vectors (phasors) are e^(-itk2π/n)
-    //here we will compute them incrementally as ((e^(-i2π/n))^k)^t
-    //by repeated multiplication basis_k = basis_k * basis
-    //and basis_t = basis_t * basis_k
-    long double complex basis = cexpl(-I*2*M_PI/num_samples);
-    long double complex basis_k = 1;
-    size_t k, t;
+    static size_t depth=0; //for debug purposes we will keep track of call depth
 
-    verbose("Basis: %.16Lf%+.16Lfj\n", creall(basis), cimagl(basis));
+    //Check the inputs; particularly that there are a power of 2 samples
+    assert(NULL != input_buf);
+    assert(NULL != transform_buf);
+    assert(0 < num_samples);
+    assert(ispowerof2(num_samples));
 
-    for (k=0; k<num_samples; k++) {
-        long double complex x = 0; //accumulate the calculations for our inner product
-        long double complex basis_t = 1;
-        verbose("Basis k(%zd): %.16Lf%+.16Lfj\n", k, creall(basis_k), cimagl(basis_k));
-        for (t=0; t<num_samples; t++) {
-            long double complex xt = 0; //temporary inner product calc
-            xt = input_buf[t] * basis_t;
-            verbose("x(%zd,%zd) = %+.16lf*(%+.16Lf%+.16Lfj) = %+.16Lf%+.16Lfj\n", k,t, input_buf[t], creall(basis_t), cimagl(basis_t), creall(xt), cimagl(xt));
-            basis_t = basis_t * basis_k;
-            x += xt;
+    //Base Case: num_samples=1
+    if (1 == num_samples) {
+        //Simply return the input, X₀=x₀
+        transform_buf[0]=CMPLX(input_buf[0], 0);
+        verbose("Returning %.16Lf%+.16Lfj at Level %zd\n",  creall(transform_buf[0]), cimagl(transform_buf[0]), depth);
+    } else {
+        size_t curdepth=depth;
+        long half_samples = num_samples/2;
+        double* temp_buf_in = NULL;
+        double complex* temp_buf_out_even = NULL;
+        double complex* temp_buf_out_odd = NULL;
+        long double complex basis = cexpl(-I*M_PI/half_samples);
+        long double complex basis_k = 1;
+
+        //Split the sample into two halves by re-arranging input buf.
+        //We aren't too worried about performance here because we will change to
+        //the bit-reversed shuffling algorithm later.
+        temp_buf_in = malloc(half_samples*sizeof(*temp_buf_in));
+
+        for (size_t i=0; i<half_samples; i++) {
+            temp_buf_in[i]=input_buf[i*2 + 1];
+            input_buf[i]=input_buf[i*2];
         }
-        verbose("total x                                                    = %+.16Lf%+.16Lfj\n", creall(x), cimagl(x));
-        transform_buf[k] = x;
-        basis_k = basis_k * basis;
+        memcpy(&input_buf[half_samples], temp_buf_in, half_samples*sizeof(*input_buf));
+
+        if (option_verbose) {
+            verbose("Sorted Inputs at Level %zd (%ld samples)\n", depth, num_samples);
+            for (size_t i=0; i<num_samples; i++)
+                verbose("%.16lf\n", input_buf[i]);
+        }
+
+        //Recursively call fft on each half
+        temp_buf_out_even = malloc(half_samples*sizeof(*temp_buf_out_even));
+        temp_buf_out_odd = malloc(half_samples*sizeof(*temp_buf_out_odd));
+        depth=curdepth+1; //increment depth before the call
+        fft(half_samples, &input_buf[0], temp_buf_out_even);
+        depth=curdepth+1; //and reset it depth after the call
+        fft(half_samples, &input_buf[half_samples], temp_buf_out_odd);
+        depth=curdepth; //and reset it depth after the call
+
+        //Merge the results
+        //Xk = Xk_even + Xk_odd*e^(-ikπ/half_samples)
+        //Again, not worrying too much about performance here because we will
+        //refactor it later.
+        basis_k = 1;
+        for (size_t k=0; k<half_samples; k++) {
+            double complex xk = temp_buf_out_even[k] +
+                basis_k*temp_buf_out_odd[k];
+            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16Lf%+.16Lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k, creal(temp_buf_out_even[k]), cimag(temp_buf_out_even[k]), creall(basis_k), cimagl(basis_k), creal(temp_buf_out_odd[k]), cimag(temp_buf_out_odd[k]), creal(xk), cimag(xk));
+            basis_k = basis_k * basis;
+            transform_buf[k] = xk;
+        }
+        for (size_t k=0; k<half_samples; k++) {
+            double complex xk = temp_buf_out_even[k] +
+                basis_k*temp_buf_out_odd[k];
+            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16Lf%+.16Lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k+half_samples, creal(temp_buf_out_even[k]), cimag(temp_buf_out_even[k]), creall(basis_k), cimagl(basis_k), creal(temp_buf_out_odd[k]), cimag(temp_buf_out_odd[k]), creal(xk), cimag(xk));
+            basis_k = basis_k * basis;
+            transform_buf[k+half_samples] = xk;
+        }
+
+        //Clean up
+        if (NULL != temp_buf_in)
+            free(temp_buf_in);
+        if (NULL != temp_buf_out_even)
+            free(temp_buf_out_even);
+        if (NULL != temp_buf_out_odd)
+            free(temp_buf_out_odd);
     }
 }
 
 /* print out the result in the test case output format */
 void print_result(long num_bins, const double complex* const bins)
 {
-    size_t i;
     printf("# %ld Frequency Bins\n", num_bins);
-    for (i=0; i<num_bins; i++)
+    for (size_t i=0; i<num_bins; i++)
         printf("%.16lf%+.16lfj\n", creal(bins[i]), cimag(bins[i]));
 
     if ((NULL != option_output_file) && (option_verbose)) {
         verbose("# %ld Frequency Bins\n", num_bins);
-        for (i=0; i< num_bins; i++)
+        for (size_t i=0; i< num_bins; i++)
             verbose("%.16lf%+.16lfj\n", creal(bins[i]), cimag(bins[i]));
     }
 }
@@ -305,9 +361,9 @@ int main(int argc, char* const argv[])
         if ((num_samples <= 0) || (num_samples > 40960)) {
             retval = 2;
         } else {
-            // perform DFT processing
+            // perform FFT processing
             transform_buf = malloc(num_samples * sizeof(*transform_buf));
-            dft(num_samples, input_buf, transform_buf);
+            fft(num_samples, input_buf, transform_buf);
 
             if (NULL != transform_buf) {
                 // write output
