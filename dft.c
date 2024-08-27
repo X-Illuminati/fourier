@@ -8,6 +8,8 @@
 
 /*** #define values ***/
 #define MAX_SAMPLES ((size_t)4096U)
+/* TIMING_TEST: number of iterations to repeat the FFT calculation */
+//#define TIMING_TEST 10U
 
 /*** global variables ***/
 /* option arguments */
@@ -305,10 +307,20 @@ int main(int argc, char* const argv[])
         if ((num_samples <= 0) || (num_samples > 40960)) {
             retval = 2;
         } else {
-            // perform DFT processing
             transform_buf = malloc(num_samples * sizeof(*transform_buf));
-            dft(num_samples, input_buf, transform_buf);
 
+#if (TIMING_TEST > 0)
+            for (
+              size_t timing_counter = 0;
+              timing_counter < (size_t)TIMING_TEST;
+              timing_counter++
+            ) {
+#endif
+              // perform DFT processing
+              dft(num_samples, input_buf, transform_buf);
+#if (TIMING_TEST > 0)
+            }
+#endif
             if (NULL != transform_buf) {
                 // write output
                 print_result(num_samples, transform_buf);

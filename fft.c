@@ -10,6 +10,8 @@
 
 /*** #define values ***/
 #define MAX_SAMPLES ((size_t)4096U)
+/* TIMING_TEST: number of iterations to repeat the FFT calculation */
+//#define TIMING_TEST 1000U
 
 /*** global variables ***/
 /* option arguments */
@@ -361,10 +363,28 @@ int main(int argc, char* const argv[])
         if ((num_samples <= 0) || (num_samples > 40960)) {
             retval = 2;
         } else {
-            // perform FFT processing
-            transform_buf = malloc(num_samples * sizeof(*transform_buf));
-            fft(num_samples, input_buf, transform_buf);
+#if (TIMING_TEST > 0)
+            double* input_copy = malloc(num_samples * sizeof(*input_buf));
+            memcpy(input_copy, input_buf, (num_samples * sizeof(*input_buf)));
+#endif
 
+            transform_buf = malloc(num_samples * sizeof(*transform_buf));
+
+#if (TIMING_TEST > 0)
+            for (
+              size_t timing_counter = 0;
+              timing_counter < (size_t)TIMING_TEST;
+              timing_counter++
+            ) {
+                // replace input with a clean copy
+                memcpy(input_buf, input_copy,
+                    (num_samples * sizeof(*input_buf)));
+#endif
+                // peform FFT processing (corrupts input_buf)
+                fft(num_samples, input_buf, transform_buf);
+#if (TIMING_TEST > 0)
+            }
+#endif
             if (NULL != transform_buf) {
                 // write output
                 print_result(num_samples, transform_buf);
