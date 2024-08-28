@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
@@ -11,7 +12,7 @@
 /*** #define values ***/
 #define MAX_SAMPLES ((size_t)4096U)
 /* TIMING_TEST: number of iterations to repeat the FFT calculation */
-//#define TIMING_TEST 1000U
+//#define TIMING_TEST 20000U
 
 /*** global variables ***/
 /* option arguments */
@@ -236,10 +237,75 @@ long parse_input(double** input_buf)
     return retval;
 }
 
+/* Reverse Bits
+ * Returns the integer with the order of bits from x reversed.
+ * That is if x=0xA1230000, will return 0x0000C485.
+ * Note: this code shamelessly stolen from stackoverflow
+ * https://stackoverflow.com/questions/746171
+ */
+uint32_t reverse_bits( uint32_t x )
+{
+    // Flip pairwise
+    x = ( ( x & 0x55555555 ) << 1 ) | ( ( x & 0xAAAAAAAA ) >> 1 );
+    // Flip pairs
+    x = ( ( x & 0x33333333 ) << 2 ) | ( ( x & 0xCCCCCCCC ) >> 2 );
+    // Flip nibbles
+    x = ( ( x & 0x0F0F0F0F ) << 4 ) | ( ( x & 0xF0F0F0F0 ) >> 4 );
+
+    // Flip bytes. CPUs have an instruction for that, pretty fast one.
+    return __builtin_bswap32( x );
+}
+
+/* Bit-Reverse Shuffle
+ * Performs the bit-reverse shuffling algorithm in-place on the input data buf.
+ * Elements will end up in their final position as though they had been
+ * recursively split into even and odd halves.
+ *
+ * Note: modifies input_buf
+ * Note: num_samples must be a power of two
+ */
+void shuffle(int num_samples, double* const input_buf)
+{
+    double temp;
+    int log2samples;
+    int half_n = num_samples/2;
+    uint32_t i, j;
+
+    assert(0 < num_samples);
+    assert(ispowerof2(num_samples));
+
+    // we already know num_samples is a power of 2 so count the zeroes
+    log2samples = __builtin_ctz(num_samples);
+
+    // Note: element 0 and N never need to be swapped
+    // (they would swap with themselves)
+    for (i=1; i<half_n; i++) {
+        j = reverse_bits(i)>>(32-log2samples);
+
+        // if i < j, then we haven't swapped these two elements yet
+        // if i == j, then we don't need to swap them
+        // if i > j, then we have swapped them already and don't need to do it
+        // again; however, there will be a matching pair of elements in the top
+        // half of the list that still needs to be swapped
+        if (i < j) {
+            verbose("swapping input %X <-> %X\n", i, j);
+            temp = input_buf[j];
+            input_buf[j] = input_buf[i];
+            input_buf[i] = temp;
+        } else if (i > j) {
+            verbose("swapping input %X <-> %X\n", i+half_n+1, j+half_n+1);
+            temp = input_buf[j+half_n+1];
+            input_buf[j+half_n+1] = input_buf[i+half_n+1];
+            input_buf[i+half_n+1] = temp;
+        }
+    }
+}
+
 /* FFT calculation
  * 1. Split the sample into two halves (even/odd fields)
  * 2. Recursively compute the FFT on each half
  * 3. Merge the results
+ *
  * Note: transform_buf must already be allocated and can not be NULL
  * Note: modifies input_buf
  */
@@ -254,6 +320,9 @@ void fft(long num_samples, double* const input_buf,
     assert(0 < num_samples);
     assert(ispowerof2(num_samples));
 
+    //TODO: make an "inner" function for the rest of the recursion
+    if (depth == 0) shuffle(num_samples, input_buf);
+
     //Base Case: num_samples=1
     if (1 == num_samples) {
         //Simply return the input, X₀=x₀
@@ -262,22 +331,10 @@ void fft(long num_samples, double* const input_buf,
     } else {
         size_t curdepth=depth;
         long half_samples = num_samples/2;
-        double* temp_buf_in = NULL;
         double complex* temp_buf_out_even = NULL;
         double complex* temp_buf_out_odd = NULL;
         long double complex basis = cexpl(-I*M_PI/half_samples);
         long double complex basis_k = 1;
-
-        //Split the sample into two halves by re-arranging input buf.
-        //We aren't too worried about performance here because we will change to
-        //the bit-reversed shuffling algorithm later.
-        temp_buf_in = malloc(half_samples*sizeof(*temp_buf_in));
-
-        for (size_t i=0; i<half_samples; i++) {
-            temp_buf_in[i]=input_buf[i*2 + 1];
-            input_buf[i]=input_buf[i*2];
-        }
-        memcpy(&input_buf[half_samples], temp_buf_in, half_samples*sizeof(*input_buf));
 
         if (option_verbose) {
             verbose("Sorted Inputs at Level %zd (%ld samples)\n", depth, num_samples);
@@ -315,8 +372,6 @@ void fft(long num_samples, double* const input_buf,
         }
 
         //Clean up
-        if (NULL != temp_buf_in)
-            free(temp_buf_in);
         if (NULL != temp_buf_out_even)
             free(temp_buf_out_even);
         if (NULL != temp_buf_out_odd)
