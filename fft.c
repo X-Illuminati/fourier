@@ -318,7 +318,7 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         verbose("Returning %.16lf%+.16lfj at Level %zd\n",  creal(transform_buf[0]), cimag(transform_buf[0]), depth);
     } else {
         long half_samples = num_samples/2;
-        double complex basis = cexpl(-I*M_PI/half_samples);
+        double complex basis = cexp(-I*M_PI/half_samples);
         double complex basis_k = 1;
         double complex basis_j = 1; //j = k+half_samples
 
@@ -338,7 +338,7 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
         // where j = k+half_samples
         basis_k = 1;
-        basis_j = cexpl(-I*M_PI);
+        basis_j = cexp(-I*M_PI);
         for (size_t k=0, j=half_samples; k<half_samples; k++, j++) {
             double complex xk = transform_buf[k] +
                 basis_k*transform_buf[j];
