@@ -9,7 +9,7 @@
 /*** #define values ***/
 #define MAX_SAMPLES ((size_t)4096U)
 /* TIMING_TEST: number of iterations to repeat the FFT calculation */
-//#define TIMING_TEST 10U
+//#define TIMING_TEST 1000U
 
 /*** global variables ***/
 /* option arguments */
@@ -235,10 +235,11 @@ long parse_input(double** input_buf)
  * Compute a basis of num_samples equally spaced phasors.
  * Use these to compute the inner product with input_buf and store the
  * results in transform_buf.
- * Note: transform_buf must already be allocated and can not be NULL
+ * Note: transform_buf must already be allocated and can not be NULL and
+ *       cannot overlap with input_buf
  */
-void dft(long num_samples, const double* const input_buf,
-    double complex* const transform_buf)
+void dft(long num_samples, const double* restrict const input_buf,
+    double complex* restrict const transform_buf)
 {
     //basis vectors (phasors) are e^(-itk2π/n)
     //here we will compute them incrementally as ((e^(-i2π/n))^k)^t

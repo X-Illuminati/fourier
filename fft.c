@@ -264,7 +264,7 @@ uint32_t reverse_bits( uint32_t x )
  * Note: modifies input_buf
  * Note: num_samples must be a power of two
  */
-void shuffle(int num_samples, double* const input_buf)
+void shuffle(int num_samples, double* restrict const input_buf)
 {
     double temp;
     int log2samples;
@@ -308,8 +308,8 @@ void shuffle(int num_samples, double* const input_buf)
  * Note: no contract checking for performance, don't call directly, call fft()
  * depth parameter is only used for logging
  */
-void fft_inner(size_t depth, long num_samples, double* const input_buf,
-    double complex* const transform_buf)
+void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
+    double complex* restrict const transform_buf)
 {
     //Base Case: num_samples=1
     if (1 == num_samples) {
@@ -368,7 +368,8 @@ void fft_inner(size_t depth, long num_samples, double* const input_buf,
  * 1. Split the sample into two halves (even/odd fields)
  * 2. Call fft_inner() to recursively compute the FFT
  *
- * Note: transform_buf must already be allocated and can not be NULL
+ * Note: transform_buf must already be allocated and can not be NULL and
+ *       cannot overlap with input_buf
  * Note: modifies input_buf
  */
 void fft(long num_samples, double* const input_buf,

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall
+CFLAGS=-Wall -march=native -O3
 OUTDIR=out
 PROG=$(OUTDIR)/fft
 DIFF=test/diff.py
