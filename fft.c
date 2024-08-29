@@ -327,14 +327,14 @@ void fft(long num_samples, double* const input_buf,
     if (1 == num_samples) {
         //Simply return the input, X₀=x₀
         transform_buf[0]=CMPLX(input_buf[0], 0);
-        verbose("Returning %.16Lf%+.16Lfj at Level %zd\n",  creall(transform_buf[0]), cimagl(transform_buf[0]), depth);
+        verbose("Returning %.16lf%+.16lfj at Level %zd\n",  creal(transform_buf[0]), cimag(transform_buf[0]), depth);
     } else {
         size_t curdepth=depth;
         long half_samples = num_samples/2;
         double complex* temp_buf_out_even = NULL;
         double complex* temp_buf_out_odd = NULL;
-        long double complex basis = cexpl(-I*M_PI/half_samples);
-        long double complex basis_k = 1;
+        double complex basis = cexpl(-I*M_PI/half_samples);
+        double complex basis_k = 1;
 
         if (option_verbose) {
             verbose("Sorted Inputs at Level %zd (%ld samples)\n", depth, num_samples);
@@ -359,14 +359,14 @@ void fft(long num_samples, double* const input_buf,
         for (size_t k=0; k<half_samples; k++) {
             double complex xk = temp_buf_out_even[k] +
                 basis_k*temp_buf_out_odd[k];
-            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16Lf%+.16Lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k, creal(temp_buf_out_even[k]), cimag(temp_buf_out_even[k]), creall(basis_k), cimagl(basis_k), creal(temp_buf_out_odd[k]), cimag(temp_buf_out_odd[k]), creal(xk), cimag(xk));
+            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k, creal(temp_buf_out_even[k]), cimag(temp_buf_out_even[k]), creal(basis_k), cimag(basis_k), creal(temp_buf_out_odd[k]), cimag(temp_buf_out_odd[k]), creal(xk), cimag(xk));
             basis_k = basis_k * basis;
             transform_buf[k] = xk;
         }
         for (size_t k=0; k<half_samples; k++) {
             double complex xk = temp_buf_out_even[k] +
                 basis_k*temp_buf_out_odd[k];
-            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16Lf%+.16Lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k+half_samples, creal(temp_buf_out_even[k]), cimag(temp_buf_out_even[k]), creall(basis_k), cimagl(basis_k), creal(temp_buf_out_odd[k]), cimag(temp_buf_out_odd[k]), creal(xk), cimag(xk));
+            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k+half_samples, creal(temp_buf_out_even[k]), cimag(temp_buf_out_even[k]), creal(basis_k), cimag(basis_k), creal(temp_buf_out_odd[k]), cimag(temp_buf_out_odd[k]), creal(xk), cimag(xk));
             basis_k = basis_k * basis;
             transform_buf[k+half_samples] = xk;
         }
