@@ -4,7 +4,7 @@ OUTDIR=out
 PROG=$(OUTDIR)/fft
 DIFF=test/diff.py
 TESTFLAGS=
-DIFFFLAGS=-t 3e-09
+DIFFFLAGS=-t 1e-09
 
 .PHONY: all
 all: $(PROG)
