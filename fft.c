@@ -301,35 +301,22 @@ void shuffle(int num_samples, double* const input_buf)
     }
 }
 
-/* FFT calculation
- * 1. Split the sample into two halves (even/odd fields)
- * 2. Recursively compute the FFT on each half
- * 3. Merge the results
+/* Recursive FFT implementation
+ * 1. Recursively compute the FFT on each half of the input buffer
+ * 2. Merge the results
  *
- * Note: transform_buf must already be allocated and can not be NULL
- * Note: modifies input_buf
+ * Note: no contract checking for performance, don't call directly, call fft()
+ * depth parameter is only used for logging
  */
-void fft(long num_samples, double* const input_buf,
+void fft_inner(size_t depth, long num_samples, double* const input_buf,
     double complex* const transform_buf)
 {
-    static size_t depth=0; //for debug purposes we will keep track of call depth
-
-    //Check the inputs; particularly that there are a power of 2 samples
-    assert(NULL != input_buf);
-    assert(NULL != transform_buf);
-    assert(0 < num_samples);
-    assert(ispowerof2(num_samples));
-
-    //TODO: make an "inner" function for the rest of the recursion
-    if (depth == 0) shuffle(num_samples, input_buf);
-
     //Base Case: num_samples=1
     if (1 == num_samples) {
         //Simply return the input, X₀=x₀
         transform_buf[0]=CMPLX(input_buf[0], 0);
         verbose("Returning %.16lf%+.16lfj at Level %zd\n",  creal(transform_buf[0]), cimag(transform_buf[0]), depth);
     } else {
-        size_t curdepth=depth;
         long half_samples = num_samples/2;
         double complex* temp_buf_out_even = NULL;
         double complex* temp_buf_out_odd = NULL;
@@ -345,11 +332,9 @@ void fft(long num_samples, double* const input_buf,
         //Recursively call fft on each half
         temp_buf_out_even = malloc(half_samples*sizeof(*temp_buf_out_even));
         temp_buf_out_odd = malloc(half_samples*sizeof(*temp_buf_out_odd));
-        depth=curdepth+1; //increment depth before the call
-        fft(half_samples, &input_buf[0], temp_buf_out_even);
-        depth=curdepth+1; //and reset it depth after the call
-        fft(half_samples, &input_buf[half_samples], temp_buf_out_odd);
-        depth=curdepth; //and reset it depth after the call
+        fft_inner(depth+1, half_samples, &input_buf[0], temp_buf_out_even);
+        fft_inner(depth+1, half_samples, &input_buf[half_samples],
+          temp_buf_out_odd);
 
         //Merge the results
         //Xk = Xk_even + Xk_odd*e^(-ikπ/half_samples)
@@ -377,6 +362,30 @@ void fft(long num_samples, double* const input_buf,
         if (NULL != temp_buf_out_odd)
             free(temp_buf_out_odd);
     }
+}
+
+/* FFT calculation
+ * 1. Split the sample into two halves (even/odd fields)
+ * 2. Call fft_inner() to recursively compute the FFT
+ *
+ * Note: transform_buf must already be allocated and can not be NULL
+ * Note: modifies input_buf
+ */
+void fft(long num_samples, double* const input_buf,
+    double complex* const transform_buf)
+{
+    //Check the inputs; particularly that there are a power of 2 samples
+    assert(NULL != input_buf);
+    assert(NULL != transform_buf);
+    assert(0 < num_samples);
+    assert(ispowerof2(num_samples));
+
+    // 1. Perform bit-reverse shuffling to split the input buffer into
+    //    even and odd samples in O(n) time rather than O(nlog(n)) time.
+    shuffle(num_samples, input_buf);
+
+    // 2. Recursively compute the FFT
+    fft_inner(0, num_samples, input_buf, transform_buf);
 }
 
 /* print out the result in the test case output format */
