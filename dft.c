@@ -290,17 +290,25 @@ int main(int argc, char* const argv[])
     // parse arguments
     retval = parse_args(argc, argv);
 
+    // redirect input and output
+    if ((0 == retval) && (NULL != option_input_file)) {
+        if (NULL == freopen(option_input_file, "r", stdin)) {
+          error("Failed to open input file %s\n", option_input_file);
+          retval = -1;
+        }
+    }
+
+    if ((0 == retval) && (NULL != option_output_file)) {
+        if (NULL == freopen(option_output_file, "w", stdout)) {
+            error("Failed to open output file %s\n", option_output_file);
+            retval = -1;
+        }
+    }
+
     if (0 == retval) {
         long num_samples = 0;
         double* input_buf = NULL; //note: free when going out of scope
         double complex* transform_buf = NULL; //note: malloc in this function
-
-        // redirect input and output
-        if (NULL != option_input_file)
-            freopen(option_input_file, "r", stdin);
-
-        if (NULL != option_output_file)
-            freopen(option_output_file, "w", stdout);
 
         // read samples from input
         num_samples = parse_input(&input_buf);
