@@ -13,6 +13,7 @@
 #define MAX_SAMPLES ((size_t)4096U)
 /* TIMING_TEST: number of iterations to repeat the FFT calculation */
 //#define TIMING_TEST 20000U
+#define FEATURE_NONRECURSIVE
 
 /*** global variables ***/
 /* option arguments */
@@ -264,7 +265,7 @@ uint32_t reverse_bits( uint32_t x )
  * Note: modifies input_buf
  * Note: num_samples must be a power of two
  */
-void shuffle(int num_samples, double* restrict const input_buf)
+void shuffle(long num_samples, double* restrict const input_buf)
 {
     double temp;
     int log2samples;
@@ -299,8 +300,62 @@ void shuffle(int num_samples, double* restrict const input_buf)
             input_buf[i+half_n+1] = temp;
         }
     }
+
+#ifdef FEATURE_NONRECURSIVE
+    if (option_verbose) {
+        verbose("Sorted Inputs (%ld samples):\n", num_samples);
+        for (size_t i=0; i<num_samples; i++)
+            verbose("%.16lf\n", input_buf[i]);
+    }
+#endif
 }
 
+#ifdef FEATURE_NONRECURSIVE
+/* Iterative FFT implementation
+ * 1. Iterate over the transform_buf in groups of 2, then 4, then 8, etc.
+ * 2. Within each group merge the individual elements together
+ *
+ * Note: no contract checking for performance, don't call directly, call fft()
+ * depth parameter is only used for logging
+ */
+void fft_inner(long num_samples, double* restrict const input_buf,
+    double complex* restrict const transform_buf)
+{
+    size_t g = 2; //grouping
+    size_t groups = num_samples/2; //number of groups
+
+    while (g<=num_samples) {
+        long half_samples = g/2;
+        double complex basis = cexp(-I*M_PI/half_samples);
+
+        for(size_t n=0; n<groups; n++) {
+            double complex basis_k = 1;
+            double complex basis_j = -1; //j = k+half_samples
+
+            //Merge the individual elements in the group
+            //Xk = Xk_even + Xk_odd*e^(-ikπ/half_samples)
+            //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
+            // where j = k+half_samples
+            basis_k = 1;
+            basis_j = -1;
+            for (size_t k=g*n, j=half_samples+g*n; k<half_samples+g*n; k++, j++) {
+                double complex xk = transform_buf[k] + basis_k*transform_buf[j];
+                double complex xj = transform_buf[k] + basis_j*transform_buf[j];
+                verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, k, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xk), cimag(xk));
+                verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_j), cimag(basis_j), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
+                basis_k = basis_k * basis;
+                basis_j = basis_j * basis;
+                transform_buf[k] = xk;
+                transform_buf[j] = xj;
+            }
+        }
+
+        //maintain the helper vars
+        g<<=1;
+        groups>>=1;
+    }
+}
+#else /* FEATURE_NONRECURSIVE */
 /* Recursive FFT implementation
  * 1. Recursively compute the FFT on each half of the input buffer
  * 2. Merge the results
@@ -320,7 +375,7 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         long half_samples = num_samples/2;
         double complex basis = cexp(-I*M_PI/half_samples);
         double complex basis_k = 1;
-        double complex basis_j = 1; //j = k+half_samples
+        double complex basis_j = -1; //j = k+half_samples
 
         if (option_verbose) {
             verbose("Sorted Inputs at Level %zd (%ld samples)\n", depth, num_samples);
@@ -338,12 +393,10 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
         // where j = k+half_samples
         basis_k = 1;
-        basis_j = cexp(-I*M_PI);
+        basis_j = -1;
         for (size_t k=0, j=half_samples; k<half_samples; k++, j++) {
-            double complex xk = transform_buf[k] +
-                basis_k*transform_buf[j];
-            double complex xj = transform_buf[k] +
-                basis_j*transform_buf[j];
+            double complex xk = transform_buf[k] + basis_k*transform_buf[j];
+            double complex xj = transform_buf[k] + basis_j*transform_buf[j];
             verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xk), cimag(xk));
             verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_j), cimag(basis_j), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
             basis_k = basis_k * basis;
@@ -353,6 +406,7 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         }
     }
 }
+#endif /* FEATURE_NONRECURSIVE */
 
 /* FFT calculation
  * 1. Split the sample into two halves (even/odd fields)
@@ -375,8 +429,17 @@ void fft(long num_samples, double* const input_buf,
     //    even and odd samples in O(n) time rather than O(nlog(n)) time.
     shuffle(num_samples, input_buf);
 
+#ifdef FEATURE_NONRECURSIVE
+    // 1.5 copy the input_buf to the transform_buf
+    for (size_t i=0; i<num_samples; i++)
+        transform_buf[i] = CMPLX(input_buf[i], 0);
+
+    // 2. Iteratively compute the FFT
+    fft_inner(num_samples, input_buf, transform_buf);
+#else
     // 2. Recursively compute the FFT
     fft_inner(0, num_samples, input_buf, transform_buf);
+#endif
 }
 
 /* print out the result in the test case output format */
