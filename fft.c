@@ -244,7 +244,7 @@ long parse_input(double** input_buf)
  * Note: this code shamelessly stolen from stackoverflow
  * https://stackoverflow.com/questions/746171
  */
-uint32_t reverse_bits( uint32_t x )
+inline uint32_t reverse_bits( uint32_t x )
 {
     // Flip pairwise
     x = ( ( x & 0x55555555 ) << 1 ) | ( ( x & 0xAAAAAAAA ) >> 1 );
@@ -265,7 +265,7 @@ uint32_t reverse_bits( uint32_t x )
  * Note: modifies input_buf
  * Note: num_samples must be a power of two
  */
-void shuffle(long num_samples, double* restrict const input_buf)
+inline void shuffle(long num_samples, double* restrict const input_buf)
 {
     double temp;
     int log2samples;
@@ -318,7 +318,7 @@ void shuffle(long num_samples, double* restrict const input_buf)
  * Note: no contract checking for performance, don't call directly, call fft()
  * depth parameter is only used for logging
  */
-void fft_inner(long num_samples, double* restrict const input_buf,
+inline void fft_inner(long num_samples,
     double complex* restrict const transform_buf)
 {
     size_t g = 2; //grouping
@@ -416,8 +416,8 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
  *       cannot overlap with input_buf
  * Note: modifies input_buf
  */
-void fft(long num_samples, double* const input_buf,
-    double complex* const transform_buf)
+void fft(long num_samples, double* restrict const input_buf,
+    double complex* restrict const transform_buf)
 {
     //Check the inputs; particularly that there are a power of 2 samples
     assert(NULL != input_buf);
@@ -435,7 +435,7 @@ void fft(long num_samples, double* const input_buf,
         transform_buf[i] = CMPLX(input_buf[i], 0);
 
     // 2. Iteratively compute the FFT
-    fft_inner(num_samples, input_buf, transform_buf);
+    fft_inner(num_samples, transform_buf);
 #else
     // 2. Recursively compute the FFT
     fft_inner(0, num_samples, input_buf, transform_buf);
