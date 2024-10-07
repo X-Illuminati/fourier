@@ -8,12 +8,9 @@
 #include <stdlib.h>
 #include <stdnoreturn.h>
 #include <string.h>
+#include "cfg.h"
 
 /*** #define values ***/
-#define MAX_SAMPLES ((size_t)4096U)
-/* TIMING_TEST: number of iterations to repeat the FFT calculation */
-//#define TIMING_TEST 20000U
-#define FEATURE_NONRECURSIVE
 
 /*** global variables ***/
 /* option arguments */

@@ -5,11 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
+#include "cfg.h"
 
 /*** #define values ***/
-#define MAX_SAMPLES ((size_t)4096U)
-/* TIMING_TEST: number of iterations to repeat the FFT calculation */
-//#define TIMING_TEST 1000U
 
 /*** global variables ***/
 /* option arguments */

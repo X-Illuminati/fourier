@@ -17,10 +17,10 @@ clean: | $(OUTDIR)
 $(OUTDIR):
 	mkdir $(OUTDIR)
 
-$(OUTDIR)/dft: dft.c | $(OUTDIR)
+$(OUTDIR)/dft: dft.c cfg.h | $(OUTDIR)
 	$(CC) $(CFLAGS) $< -lm -o $@
 
-$(OUTDIR)/fft: fft.c | $(OUTDIR)
+$(OUTDIR)/fft: fft.c cfg.h | $(OUTDIR)
 	$(CC) $(CFLAGS) $< -lm -o $@
 
 .PHONY: test
