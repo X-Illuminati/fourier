@@ -5,6 +5,7 @@ PROG=$(OUTDIR)/fft
 DIFF=test/diff.py
 TESTFLAGS=
 DIFFFLAGS=-t 1e-09
+TWIDDLE_GENARGS=
 
 .PHONY: all
 all: $(PROG)
@@ -20,7 +21,7 @@ $(OUTDIR):
 $(OUTDIR)/dft: dft.c cfg.h | $(OUTDIR)
 	$(CC) $(CFLAGS) $< -lm -o $@
 
-$(OUTDIR)/fft: fft.c cfg.h | $(OUTDIR)
+$(OUTDIR)/fft: fft.c cfg.h twiddle.h | $(OUTDIR)
 	$(CC) $(CFLAGS) $< -lm -o $@
 
 .PHONY: test
@@ -38,3 +39,6 @@ $(OUTDIR)/%.tc.out: test/%.tc $(PROG)
 $(OUTDIR)/%.tc.diff: $(OUTDIR)/%.tc.out $(OUTDIR)/%.numpy.out
 	$(DIFF) $(@:%.tc.diff=%.tc.out) $(@:%.tc.diff=%.numpy.out) $(DIFFFLAGS)
 
+.SECONDARY: twiddle.h
+twiddle.h: twiddle.py
+	./twiddle.py $(TWIDDLE_GENARGS)

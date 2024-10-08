@@ -10,6 +10,10 @@
 #include <string.h>
 #include "cfg.h"
 
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+#include "twiddle.h"
+#endif
+
 /*** #define values ***/
 
 /*** global variables ***/

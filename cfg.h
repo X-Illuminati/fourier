@@ -29,5 +29,14 @@
  */
 #define FEATURE_NONRECURSIVE
 
+/*
+ * FEATURE_PRECOMPUTED_TWIDDLE_FACTORS: use precomputed twiddle factors
+ * Rather than computing the complex exponential factors in the course of
+ * executing the algorithm, look them up from the precomputed tables in
+ * twiddle.h.
+ * Only applicable to fft.c.
+ */
+#define FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+
 #endif /* DFT_CFG_H */
 
