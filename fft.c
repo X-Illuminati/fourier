@@ -327,21 +327,19 @@ inline void fft_inner(long num_samples,
 
         for(size_t n=0; n<groups; n++) {
             double complex basis_k = 1;
-            double complex basis_j = -1; //j = k+half_samples
 
             //Merge the individual elements in the group
             //Xk = Xk_even + Xk_odd*e^(-ikπ/half_samples)
             //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
             // where j = k+half_samples
+            // and, therefore, e^(-ij) = -e^(-ik)
             basis_k = 1;
-            basis_j = -1;
             for (size_t k=g*n, j=half_samples+g*n; k<half_samples+g*n; k++, j++) {
                 double complex xk = transform_buf[k] + basis_k*transform_buf[j];
-                double complex xj = transform_buf[k] + basis_j*transform_buf[j];
+                double complex xj = transform_buf[k] - basis_k*transform_buf[j];
                 verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, k, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xk), cimag(xk));
-                verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_j), cimag(basis_j), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
+                verbose("%zd,%zd: (%+.16lf%+.16lfj)-(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
                 basis_k = basis_k * basis;
-                basis_j = basis_j * basis;
                 transform_buf[k] = xk;
                 transform_buf[j] = xj;
             }
@@ -372,7 +370,6 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         long half_samples = num_samples/2;
         double complex basis = cexp(-I*M_PI/half_samples);
         double complex basis_k = 1;
-        double complex basis_j = -1; //j = k+half_samples
 
         if (option_verbose) {
             verbose("Sorted Inputs at Level %zd (%ld samples)\n", depth, num_samples);
@@ -389,15 +386,14 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         //Xk = Xk_even + Xk_odd*e^(-ikπ/half_samples)
         //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
         // where j = k+half_samples
+        // and, therefore, e^(-ij) = -e^(-ik)
         basis_k = 1;
-        basis_j = -1;
         for (size_t k=0, j=half_samples; k<half_samples; k++, j++) {
             double complex xk = transform_buf[k] + basis_k*transform_buf[j];
-            double complex xj = transform_buf[k] + basis_j*transform_buf[j];
+            double complex xj = transform_buf[k] - basis_k*transform_buf[j];
             verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xk), cimag(xk));
-            verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_j), cimag(basis_j), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
+            verbose("%zd,%zd: (%+.16lf%+.16lfj)-(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
             basis_k = basis_k * basis;
-            basis_j = basis_j * basis;
             transform_buf[k] = xk;
             transform_buf[j] = xj;
         }
