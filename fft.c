@@ -322,36 +322,57 @@ inline void shuffle(long num_samples, double* restrict const input_buf)
 inline void fft_inner(long num_samples,
     double complex* restrict const transform_buf)
 {
-    size_t g = 2; //grouping
+    size_t g = 2; //grouping size
     size_t groups = num_samples/2; //number of groups
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+    size_t gc = 0; //group counter
+#endif
 
     while (g<=num_samples) {
         long half_samples = g/2;
+#ifndef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
         double complex basis = cexp(-I*M_PI/half_samples);
+#endif
 
         for(size_t n=0; n<groups; n++) {
+            size_t k = g*n; //group_size*count_n, counts up from 0 to halfway
+            size_t j = k + half_samples; //count up from halfway point of group
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+            double complex basis_k = W²[gc][0];
+            size_t c = 0; //count through the basis entries
+#else
             double complex basis_k = 1;
+#endif
 
             //Merge the individual elements in the group
             //Xk = Xk_even + Xk_odd*e^(-ikπ/half_samples)
             //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
             // where j = k+half_samples
             // and, therefore, e^(-ij) = -e^(-ik)
-            basis_k = 1;
-            for (size_t k=g*n, j=half_samples+g*n; k<half_samples+g*n; k++, j++) {
+            for (; k<(half_samples+g*n); k++, j++) {
                 double complex xk = transform_buf[k] + basis_k*transform_buf[j];
                 double complex xj = transform_buf[k] - basis_k*transform_buf[j];
                 verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, k, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xk), cimag(xk));
                 verbose("%zd,%zd: (%+.16lf%+.16lfj)-(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", g, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
-                basis_k = basis_k * basis;
                 transform_buf[k] = xk;
                 transform_buf[j] = xj;
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+                //grab next precomputed twiddle factor in group gc
+                c++;
+                basis_k = W²[gc][c];
+#else
+                //compute next twiddle factor by multiplying by basis
+                basis_k = basis_k * basis;
+#endif
             }
         }
 
         //maintain the helper vars
         g<<=1;
         groups>>=1;
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+        gc++;
+#endif
     }
 }
 #else /* FEATURE_NONRECURSIVE */
@@ -372,8 +393,15 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         verbose("Returning %.16lf%+.16lfj at Level %zd\n",  creal(transform_buf[0]), cimag(transform_buf[0]), depth);
     } else {
         long half_samples = num_samples/2;
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+        // we already know num_samples is a power of 2 so count the zeroes
+        const int log2samples = __builtin_ctz(num_samples);
+        const size_t gc = log2samples-1;
+        double complex basis_k = W²[gc][0];
+#else
         double complex basis = cexp(-I*M_PI/half_samples);
         double complex basis_k = 1;
+#endif
 
         if (option_verbose) {
             verbose("Sorted Inputs at Level %zd (%ld samples)\n", depth, num_samples);
@@ -391,15 +419,21 @@ void fft_inner(size_t depth, long num_samples, double* restrict const input_buf,
         //Xj = Xk_even + Xk_odd*e^(-ijπ/half_samples)
         // where j = k+half_samples
         // and, therefore, e^(-ij) = -e^(-ik)
-        basis_k = 1;
         for (size_t k=0, j=half_samples; k<half_samples; k++, j++) {
+#ifdef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+            //grab next precomputed twiddle factor in group gc
+            basis_k = W²[gc][k];
+#endif
             double complex xk = transform_buf[k] + basis_k*transform_buf[j];
             double complex xj = transform_buf[k] - basis_k*transform_buf[j];
             verbose("%zd,%zd: (%+.16lf%+.16lfj)+(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, k, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xk), cimag(xk));
             verbose("%zd,%zd: (%+.16lf%+.16lfj)-(%+.16lf%+.16lfj)*(%+.16lf%+.16lfj) = %+.16lf%+.16lfj\n", depth, j, creal(transform_buf[k]), cimag(transform_buf[k]), creal(basis_k), cimag(basis_k), creal(transform_buf[j]), cimag(transform_buf[j]), creal(xj), cimag(xj));
-            basis_k = basis_k * basis;
             transform_buf[k] = xk;
             transform_buf[j] = xj;
+#ifndef FEATURE_PRECOMPUTED_TWIDDLE_FACTORS
+            //compute next twiddle factor by multiplying by basis
+            basis_k = basis_k * basis;
+#endif
         }
     }
 }
